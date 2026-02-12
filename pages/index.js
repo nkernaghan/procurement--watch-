@@ -65,7 +65,7 @@ async function callBatch(batch, signal) {
     signal,
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 4096,
       system: "You search the web for government procurement notices on the specific official portals listed. Return ONLY a valid JSON object with the exact keys requested. No markdown fences, no commentary.",
       messages: [{ role: "user", content: batch.prompt }],
       tools: [{ type: "web_search_20250305", name: "web_search" }],
