@@ -68,7 +68,7 @@ async function callBatch(batch, signal) {
       max_tokens: 4096,
       system: "You search the web for government procurement notices on the specific official portals listed. Return ONLY a valid JSON object with the exact keys requested. No markdown fences, no commentary.",
       messages: [{ role: "user", content: batch.prompt }],
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      tools: [{ type: "web_search_20250305" }],
     }),
   });
   return response;
@@ -149,9 +149,15 @@ export default function Dashboard() {
         continue;
       }
 
+      let data;
+      try { data = await response.json(); } catch {
+        batch.sourceIds.forEach((sid) => { setSts((p) => ({ ...p, [sid]: { st: "err", pull: 0, add: 0, err: "JSON parse fail" } })); allStats.push({ id: sid, st: "err", pull: 0, add: 0 }); });
+        continue;
+      }
+
       if (response.status === 429) {
         let retryAt;
-        try { const body = await response.json(); const epoch = body?.error?.resetsAt || body?.error?.metadata?.resetsAt; if (epoch) retryAt = new Date(epoch * 1000); } catch {}
+        try { const epoch = data?.error?.resetsAt || data?.error?.metadata?.resetsAt; if (epoch) retryAt = new Date(epoch * 1000); } catch {}
         if (!retryAt) retryAt = new Date(now + 120000);
         setBanner({ type: "rate", msg: `Rate limited on batch ${bi + 1}. Retry after ${fmtTime(retryAt)}.`, until: retryAt.toISOString() });
         up.rateLimitUntil = retryAt.toISOString();
@@ -163,13 +169,9 @@ export default function Dashboard() {
       }
 
       if (!response.ok) {
-        batch.sourceIds.forEach((sid) => { setSts((p) => ({ ...p, [sid]: { st: "err", pull: 0, add: 0, err: `HTTP ${response.status}` } })); allStats.push({ id: sid, st: "err", pull: 0, add: 0 }); });
-        continue;
-      }
-
-      let data;
-      try { data = await response.json(); } catch {
-        batch.sourceIds.forEach((sid) => { setSts((p) => ({ ...p, [sid]: { st: "err", pull: 0, add: 0, err: "JSON parse fail" } })); allStats.push({ id: sid, st: "err", pull: 0, add: 0 }); });
+        const errMsg = data?.error?.message || data?.error?.type || `HTTP ${response.status}`;
+        console.error(`Batch ${batch.label} error:`, JSON.stringify(data));
+        batch.sourceIds.forEach((sid) => { setSts((p) => ({ ...p, [sid]: { st: "err", pull: 0, add: 0, err: `${response.status}: ${errMsg}` } })); allStats.push({ id: sid, st: "err", pull: 0, add: 0 }); });
         continue;
       }
 
